@@ -140,6 +140,7 @@ Enabling **Windows Subsystem for Linux (WSL)**:
         
 
 These enable another class of processes: **Pico processes**
+NOTE: WSL 2 (Current Default): Uses a managed VM that runs a real Linux kernel, which provides better performance and full system call compatibility.
 
 ---
 
@@ -163,7 +164,7 @@ This design is based on:
 
 Used by:
 
-- **WSL**
+- **WSL**. NOTE: WSL 2 (Current Default): Uses a managed VM that runs a real Linux kernel, which provides better performance and full system call compatibility.
     
 - **SQL Server for Linux** (via a Library OS)
     
