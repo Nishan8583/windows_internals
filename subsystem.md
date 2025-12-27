@@ -4,7 +4,11 @@ A **subsystem is an abstraction layer around the kernel, not inside it**.
 
 Think of it like this:
 
-`Applications     ↓ Subsystem (API + behavior)     ↓ NT Native API (ntdll)     ↓ Kernel (Executive + Kernel-mode components)`
+```Applications
+↓ Subsystem (API + behavior)
+↓ NT Native API (ntdll)
+↓ Kernel (Executive + Kernel-mode components)
+```
 
 So:
 
