@@ -103,6 +103,8 @@
 - First user-mode process; created by kernel thread.
     
 - Creates multiple instances for session initialization (multi-session support).
+- When Smss.exe starts, it checks whether it is the first instance (the master Smss.exe) or an instance of itself that the master Smss.exe launched to create a session. If command-line arguments are present, it is the latter.
+- By creating multiple instances of itself during boot-up and Terminal Services session creation, Smss.exe can create multiple sessions at the same time—as many as four concurrent sessions, plus one more for each extra CPU beyond one
     
 - Performs **one-time system initialization**:
     
