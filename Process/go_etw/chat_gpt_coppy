@@ -1,0 +1,123 @@
+/*
+package main
+
+import (
+	"fmt"
+	"syscall"
+	"unsafe"
+)
+
+const (
+	EVENT_TRACE_FLAG_NETWORK_TCPIP = 0x00000010
+	EVENT_TRACE_FILE_MODE_CIRCULAR = 0x00000002
+	WNODE_FLAG_TRACED_GUID         = 0x00020000
+
+	EVENT_TRACE_CONTROL_STOP = 1
+)
+
+var (
+	advapi32           = syscall.NewLazyDLL("advapi32.dll")
+	procStartTraceW    = advapi32.NewProc("StartTraceW")
+	procControlTraceW  = advapi32.NewProc("ControlTraceW")
+)
+
+// SystemTraceControlGuid (NT Kernel Logger GUID)
+var SystemTraceControlGuid = syscall.GUID{
+	Data1: 0x9e814aad,
+	Data2: 0x3204,
+	Data3: 0x11d2,
+	Data4: [8]byte{0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39},
+}
+
+type WNODE_HEADER struct {
+	BufferSize        uint32
+	ProviderId        uint32
+	HistoricalContext uint64
+	TimeStamp         int64
+	Guid              syscall.GUID
+	ClientContext     uint33
+	Flags             uint32
+}
+
+type EVENT_TRACE_PROPERTIES struct {
+	Wnode               WNODE_HEADER
+	BufferSize          uint32
+	MinimumBuffers      uint32
+	MaximumBuffers      uint32
+	MaximumFileSize     uint32
+	LogFileMode         uint32
+	FlushTimer          uint32
+	EnableFlags         uint32
+	AgeLimit            int32
+	NumberOfBuffers     uint32
+	FreeBuffers         uint32
+	EventsLost          uint32
+	BuffersWritten      uint32
+	LogBuffersLost      uint32
+	RealTimeBuffersLost uint32
+	LoggerThreadId      uintptr
+	LogFileNameOffset   uint32
+	LoggerNameOffset    uint32
+}
+
+func main() {
+	sessionName := syscall.StringToUTF16("NT Kernel Logger")
+	logFile := syscall.StringToUTF16(`C:\temp\kernel.etl`)
+
+	bufferSize := uint32(
+		unsafe.Sizeof(EVENT_TRACE_PROPERTIES{}) +
+			uintptr(len(sessionName))*2 +
+			uintptr(len(logFile))*2,
+	)
+
+	buf := make([]byte, bufferSize)
+	props := (*EVENT_TRACE_PROPERTIES)(unsafe.Pointer(&buf[0]))
+
+	props.Wnode.BufferSize = bufferSize
+	props.Wnode.Flags = WNODE_FLAG_TRACED_GUID
+	props.Wnode.ClientContext = 1 // QPC
+	props.Wnode.Guid = SystemTraceControlGuid
+
+	props.EnableFlags = EVENT_TRACE_FLAG_NETWORK_TCPIP
+	props.LogFileMode = EVENT_TRACE_FILE_MODE_CIRCULAR
+	props.MaximumFileSize = 5 // MB
+
+	props.LoggerNameOffset = uint32(unsafe.Sizeof(EVENT_TRACE_PROPERTIES{}))
+	props.LogFileNameOffset = props.LoggerNameOffset + uint32(len(sessionName))*2
+
+	copy(
+		buf[props.LoggerNameOffset:],
+		(*(*[1 << 20]byte)(unsafe.Pointer(&sessionName[0])))[:len(sessionName)*2],
+	)
+
+	copy(
+		buf[props.LogFileNameOffset:],
+		(*(*[1 << 20]byte)(unsafe.Pointer(&logFile[0])))[:len(logFile)*2],
+	)
+
+	var sessionHandle uintptr
+
+	ret, _, err := procStartTraceW.Call(
+		uintptr(unsafe.Pointer(&sessionHandle)),
+		uintptr(unsafe.Pointer(&sessionName[0])),
+		uintptr(unsafe.Pointer(props)),
+	)
+
+	if ret != 0 {
+		fmt.Println("StartTrace failed:", err)
+		return
+	}
+
+	fmt.Println("Kernel ETW session started. Press Enter to stop.")
+	fmt.Scanln()
+
+	procControlTraceW.Call(
+		sessionHandle,
+		uintptr(unsafe.Pointer(&sessionName[0])),
+		uintptr(unsafe.Pointer(props)),
+		EVENT_TRACE_CONTROL_STOP,
+	)
+
+	fmt.Println("Kernel ETW session stopped.")
+}
+*/
