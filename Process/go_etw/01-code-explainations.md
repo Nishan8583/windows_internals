@@ -274,3 +274,6 @@ You now understand:
     
 
 This is **core Windows internals knowledge**.
+
+### More
+## The code
