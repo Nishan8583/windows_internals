@@ -15,13 +15,22 @@ const (
 	WNODE_FLAG_TRACED_GUID         = 0x00020000
 
 	EVENT_TRACE_CONTROL_STOP = 1
+
+	// Trace modes
+	PROCESS_TRACE_MODE_REAL_TIME    = 0x00000100
+	PROCESS_TRACE_MODE_EVENT_RECORD = 0x10000000
 )
 
 // importing the library and procedures
 var (
-	advapi32          = syscall.NewLazyDLL("advapi32.dll")
-	procStartTraceW   = advapi32.NewProc("StartTraceW")
-	procControlTraceW = advapi32.NewProc("ControlTraceW")
+	advapi32                   = syscall.NewLazyDLL("advapi32.dll")
+	procStartTraceW            = advapi32.NewProc("StartTraceW")
+	procControlTraceW          = advapi32.NewProc("ControlTraceW")
+	procOpenTraceW             = advapi32.NewProc("OpenTraceW")
+	procProcessTrace           = advapi32.NewProc("ProcessTrace")
+	procCloseTrace             = advapi32.NewProc("CloseTrace")
+	tdh                        = syscall.NewLazyDLL("tdh.dll")
+	procTdhGetEventInformation = tdh.NewProc("TdhGetEventInformation")
 )
 
 // SystemTraceControlGuid we will need later on, in C we have already included it from evntrace.h
@@ -76,6 +85,82 @@ type EVENT_TRACE_PROPERTIES struct {
 	LoggerNameOffset    uint32
 }
 
+type EVENT_TRACE_LOGFILEW struct {
+	LogFileName         *uint16
+	LoggerName          *uint16
+	CurrentTime         int64
+	BuffersRead         uint32
+	ProcessTraceMode    uint32
+	EventRecordCallback uintptr
+}
+
+type EVENT_HEADER struct {
+	Size            uint16
+	HeaderType      uint16
+	Flags           uint16
+	EventProperty   uint16
+	ThreadId        uint32
+	ProcessId       uint32
+	TimeStamp       int64
+	ProviderId      syscall.GUID
+	EventDescriptor struct {
+		Id      uint16
+		Version uint8
+		Channel uint8
+		Level   uint8
+		Opcode  uint8
+		Task    uint16
+		Keyword uint64
+	}
+}
+
+type EVENT_RECORD struct {
+	EventHeader   EVENT_HEADER
+	BufferContext struct {
+		ProcessorNumber uint16
+		Alignment       uint16
+	}
+	ExtendedDataCount uint16
+	UserDataLength    uint16
+	ExtendedData      uintptr
+	UserData          uintptr
+	UserContext       uintptr
+}
+
+func etwCallback(eventRecord *EVENT_RECORD) {
+	h := eventRecord.EventHeader
+	fmt.Printf(
+		"[ETW] PID=%d TID=%d EventID=%d Opcode=%d\n",
+		h.ProcessId,
+		h.ThreadId,
+		h.EventDescriptor.Id,
+		h.EventDescriptor.Opcode,
+	)
+
+	// ---- TDH metadata query (unmarshalling entry point) ----
+	var size uint32
+	ret, _, _ := procTdhGetEventInformation.Call(
+		uintptr(unsafe.Pointer(eventRecord)),
+		0,
+		0,
+		0,
+		uintptr(unsafe.Pointer(&size)),
+	)
+
+	if ret != uintptr(syscall.ERROR_INSUFFICIENT_BUFFER) {
+		return
+	}
+
+	buf := make([]byte, size)
+	procTdhGetEventInformation.Call(
+		uintptr(unsafe.Pointer(eventRecord)),
+		0,
+		0,
+		uintptr(unsafe.Pointer(&buf[0])),
+		uintptr(unsafe.Pointer(&size)),
+	)
+}
+
 func main() {
 	sessionName, err := syscall.UTF16FromString("NT Kernel Logger")
 	if err != nil {
@@ -120,17 +205,17 @@ func main() {
 	props.MaximumFileSize = 5 // MB
 
 	props.LoggerNameOffset = uint32(unsafe.Sizeof(EVENT_TRACE_PROPERTIES{}))
-	props.LogFileNameOffset = props.LoggerNameOffset + uint32(len(sessionName)*2)
+	//props.LogFileNameOffset = props.LoggerNameOffset + uint32(len(sessionName)*2)
 
 	copy(
 		buf[props.LoggerNameOffset:],
 		(*(*[1 << 20]byte)(unsafe.Pointer(&sessionName[0])))[:len(sessionName)*2],
 	)
 
-	copy(
-		buf[props.LogFileNameOffset:],
-		(*(*[1 << 20]byte)(unsafe.Pointer(&logFile[0])))[:len(logFile)*2],
-	)
+	//copy(
+	//	buf[props.LogFileNameOffset:],
+	//	(*(*[1 << 20]byte)(unsafe.Pointer(&logFile[0])))[:len(logFile)*2],
+	//)
 
 	var sessionHandle uintptr
 
@@ -145,6 +230,33 @@ func main() {
 		return
 	}
 
+	logfile := EVENT_TRACE_LOGFILEW{
+		LoggerName:          syscall.StringToUTF16Ptr("NT Kernel Logger"),
+		ProcessTraceMode:    PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_EVENT_RECORD,
+		EventRecordCallback: syscall.NewCallback(etwCallback),
+	}
+
+	traceHandle, _, err := procOpenTraceW.Call(
+		uintptr(unsafe.Pointer(&logfile)),
+	)
+	if traceHandle == uintptr(^uintptr(0)) {
+		fmt.Println("OpenTrace failed:", err)
+		return
+	}
+
+	go func() {
+		procProcessTrace.Call(
+			uintptr(unsafe.Pointer(&traceHandle)),
+			1,
+			0,
+			0,
+		)
+	}()
+
+	fmt.Println("[*] Listening for ETW events (press Enter to stop)")
+	fmt.Scanln()
+
+	procCloseTrace.Call(traceHandle)
 	fmt.Println("Kernel ETW session started. Press Enter to stop.")
 	fmt.Scanln()
 
