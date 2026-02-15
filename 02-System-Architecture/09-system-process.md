@@ -62,7 +62,7 @@
 - Examples:
     
     - Memory manager threads (dirty page writes, swapping).
-        
+       
     - Cache manager (read-ahead, write-behind).
         
     - File server threads (network I/O).
